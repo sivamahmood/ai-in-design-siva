@@ -54,6 +54,6 @@ Buildings: 3D building models LoD2 © GDI-Th (dl-de/by-2-0). Land use and pedest
 ## How this was made
 
 1. Tools: Claude Code, with the model Claude Opus 5.5.
-2. I decided:
+2. I decided:to add building shade for a chosen date and time, because my thesis measures how much public space is shaded during summer heat.
 3. The agent did: read the city kit, wrote the React Three Fiber app with the walking, band, resident and building-shade calculations, checked them against the data and wrote this README.
-4. I checked:
+4. I checked:that shadows lengthen and turn toward the evening, and that the shade percentages change when I move the time slider.
