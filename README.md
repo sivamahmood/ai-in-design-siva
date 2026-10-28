@@ -35,7 +35,8 @@ npm run dev     start the app at http://localhost:5173
 - Residents are assumed to be spread evenly over each 100 m cell, so the counts are estimates. The census also changes small counts slightly at random to protect privacy.
 - The kit covers only part of Weimar (about 1.3 × 2 km). Near its edge the network, the buildings and the census cells stop, so areas there are cut short.
 - Buildings are extruded to their highest point; roof shapes are not shown.
-- Shade counts only buildings. Trees, terrain, awnings and clouds are not included, and buildings are blocks of their highest point, which overstates shade from pitched roofs a little.
+- Shade counts buildings and, when shown, the suggested trees. Existing trees, terrain, awnings and clouds are not included, and buildings are blocks of their highest point, which overstates shade from pitched roofs a little.
+- Suggested trees have an assumed size, not a measured one: a round crown 8 m wide, 10 m tall in total. Only the crown casts shade, and it blocks the sun fully, while a real crown lets some light through. Only the trunk is kept clear of buildings, so in narrow lanes a crown can overlap a facade. Trees are placed for one date and time; they stay put when the slider moves.
 - Streets near the edge of the kit miss shade from buildings outside it.
 - Shade is measured on the street centre line, not across the whole width of the street or square.
 

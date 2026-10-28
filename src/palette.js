@@ -25,3 +25,6 @@ export const GROUND = '#f3f1ec'
 // Streets in sun and in building shade.
 export const STREET_SUN = '#d99a2b'
 export const STREET_SHADE = '#4a4f63'
+// Suggested trees: crown and trunk.
+export const TREE_CROWN = '#4f8a3c'
+export const TREE_TRUNK = '#6b4f36'

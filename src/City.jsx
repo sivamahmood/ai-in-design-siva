@@ -1,11 +1,12 @@
-// The 3D city: ground, buildings, streets, sunlight, the three walking areas and the start point.
-import { useEffect, useMemo } from 'react'
+// The 3D city: ground, buildings, streets, sunlight, suggested trees, the three walking areas and the start point.
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { GROUND, REACH_COLORS, STREET_SHADE, STREET_SUN, useColor } from './palette.js'
+import { GROUND, REACH_COLORS, STREET_SHADE, STREET_SUN, TREE_CROWN, TREE_TRUNK, useColor } from './palette.js'
 import { sunDirection } from './sun.js'
+import { CROWN_CENTRE_M, CROWN_RADIUS_M, MAX_TREES, TRUNK_HEIGHT_M } from './trees.js'
 
 // Local metres are x east, y north. In the 3D scene y is up, so north is -z.
 // Flat shapes are drawn in the x/y plane and then laid down with this rotation.
@@ -66,7 +67,36 @@ function Buildings({ buildings, buildingArea }) {
   )
 }
 
-// Street pieces of about 2 m, each coloured by whether it lies in building shade.
+// Low-poly trees: a trunk and a round crown each, all in two meshes so orbiting stays smooth.
+// They cast shadows like the buildings.
+function Trees({ points }) {
+  const trunks = useRef(), crowns = useRef()
+  useLayoutEffect(() => {
+    const m = new THREE.Matrix4()
+    points.forEach(([x, y], i) => {
+      trunks.current.setMatrixAt(i, m.makeTranslation(x, TRUNK_HEIGHT_M / 2, -y))
+      crowns.current.setMatrixAt(i, m.makeTranslation(x, CROWN_CENTRE_M, -y))
+    })
+    for (const mesh of [trunks.current, crowns.current]) {
+      mesh.count = points.length
+      mesh.instanceMatrix.needsUpdate = true
+    }
+  }, [points])
+  return (
+    <>
+      <instancedMesh ref={trunks} args={[undefined, undefined, MAX_TREES]} castShadow frustumCulled={false}>
+        <cylinderGeometry args={[0.25, 0.35, TRUNK_HEIGHT_M, 6]} />
+        <meshLambertMaterial color={TREE_TRUNK} />
+      </instancedMesh>
+      <instancedMesh ref={crowns} args={[undefined, undefined, MAX_TREES]} castShadow receiveShadow frustumCulled={false}>
+        <icosahedronGeometry args={[CROWN_RADIUS_M, 1]} />
+        <meshLambertMaterial color={TREE_CROWN} flatShading />
+      </instancedMesh>
+    </>
+  )
+}
+
+// Street pieces of about 2 m, each coloured by whether it lies in building or tree shade.
 function Streets({ pieces, streetShade }) {
   const geometry = useMemo(() => {
     const pos = new Float32Array(pieces.length * 6)
@@ -129,7 +159,7 @@ function ReachArea({ shapes, index }) {
   )
 }
 
-export default function City({ kit, result, onPick, sun, pieces, streetShade }) {
+export default function City({ kit, result, onPick, sun, pieces, streetShade, trees }) {
   // A click on the ground or on a roof starts a walk from that spot.
   // Clicks at the end of a drag (orbiting or panning) are ignored.
   const handleClick = (e) => {
@@ -154,6 +184,7 @@ export default function City({ kit, result, onPick, sun, pieces, streetShade }) 
       </group>
 
       <Streets pieces={pieces} streetShade={streetShade} />
+      {trees && <Trees points={trees} />}
 
       {reach?.areas.map((a, i) => <ReachArea key={i} shapes={a.shapes} index={i} />)}
       {reach && (

@@ -6,6 +6,7 @@ import { loadKit } from './geo.js'
 import { createReach } from './reach.js'
 import { createShade } from './shade.js'
 import { sunPosition } from './sun.js'
+import { suggestTrees } from './trees.js'
 
 // Worded as in public/data/SOURCES.md.
 const ATTRIBUTION =
@@ -18,6 +19,9 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [date, setDate] = useState('2026-07-21')
   const [hours, setHours] = useState(14)
+  // Suggested trees: { points, segments, requested, date, hours }, or null.
+  const [trees, setTrees] = useState(null)
+  const [treesBusy, setTreesBusy] = useState(false)
 
   useEffect(() => {
     loadKit()
@@ -36,11 +40,33 @@ export default function App() {
     const id = requestAnimationFrame(() => setShadeSun(sun))
     return () => cancelAnimationFrame(id)
   }, [sun])
-  const streetShade = useMemo(() => shade?.streetShade(shadeSun), [shade, shadeSun])
+  const streetShade = useMemo(() => shade?.streetShade(shadeSun, trees?.points), [shade, shadeSun, trees])
   const areaShade = useMemo(
-    () => (shade && result && !result.error ? result.areas.map((a) => shade.shadedShare(a.segments, shadeSun)) : null),
-    [shade, result, shadeSun],
+    () =>
+      shade && result && !result.error
+        ? result.areas.map((a) => shade.shadedShare(a.segments, shadeSun, trees?.points))
+        : null,
+    [shade, result, shadeSun, trees],
   )
+  // Street length in sun without the trees that lies in tree shade now, in metres.
+  const treeShadedLength = useMemo(() => {
+    if (!trees || !streetShade) return 0
+    let sum = 0
+    shade.pieces.forEach((p, i) => {
+      if (streetShade[i] === 2) sum += p.length
+    })
+    return sum
+  }, [shade, streetShade, trees])
+
+  const suggest = (count) => {
+    setTreesBusy(true)
+    // Let the panel show "Placing trees…" before the calculation starts.
+    setTimeout(() => {
+      const placed = suggestTrees(shade, kit.nodes, kit.edges, date, hours, count)
+      setTrees({ ...placed, requested: count, date, hours })
+      setTreesBusy(false)
+    }, 20)
+  }
 
   const pick = (x, y) => {
     setBusy(true)
@@ -55,14 +81,34 @@ export default function App() {
     <div className="app">
       <div className="map">
         {kit && (
-          <City kit={kit} result={result} onPick={pick} sun={sun} pieces={shade.pieces} streetShade={streetShade} />
+          <City
+            kit={kit}
+            result={result}
+            onPick={pick}
+            sun={sun}
+            pieces={shade.pieces}
+            streetShade={streetShade}
+            trees={trees?.points}
+          />
         )}
         {kit && <SunControl date={date} hours={hours} sun={sun} onDate={setDate} onHours={setHours} />}
         {!kit && !error && <p className="status">Loading the city kit…</p>}
         {error && <p className="status error">The city kit didn't load ({error}).</p>}
         <p className="attribution">{ATTRIBUTION}</p>
       </div>
-      <Panel result={result} busy={busy} areaShade={areaShade} date={date} hours={hours} />
+      <Panel
+        result={result}
+        busy={busy}
+        areaShade={areaShade}
+        date={date}
+        hours={hours}
+        ready={!!kit}
+        trees={trees}
+        treesBusy={treesBusy}
+        treeShadedLength={treeShadedLength}
+        onSuggest={suggest}
+        onRemove={() => setTrees(null)}
+      />
     </div>
   )
 }
