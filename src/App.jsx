@@ -1,31 +1,68 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import City from './City.jsx'
+import Panel from './Panel.jsx'
+import SunControl from './SunControl.jsx'
+import { loadKit } from './geo.js'
+import { createReach } from './reach.js'
+import { createShade } from './shade.js'
+import { sunPosition } from './sun.js'
 
-// A start page that proves the site and the data load, on localhost and on GitHub Pages.
-// Replace it with your app.
+// Worded as in public/data/SOURCES.md.
+const ATTRIBUTION =
+  'Buildings: 3D building models LoD2 © GDI-Th (dl-de/by-2-0). Land use and pedestrian network: Egor Gaydukov, InfAU, Bauhaus-Universität Weimar. Census grid: Zensus 2022, © Statistische Ämter des Bundes und der Länder (dl-de/by-2-0).'
+
 export default function App() {
   const [kit, setKit] = useState(null)
   const [error, setError] = useState(null)
+  const [result, setResult] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [date, setDate] = useState('2026-07-21')
+  const [hours, setHours] = useState(14)
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}data/kit.json`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`data/kit.json: ${r.status}`)
-        return r.json()
-      })
+    loadKit()
       .then(setKit)
       .catch((e) => setError(e.message))
   }, [])
 
+  const compute = useMemo(() => (kit ? createReach(kit) : null), [kit])
+  const shade = useMemo(() => (kit ? createShade(kit) : null), [kit])
+  const sun = useMemo(() => sunPosition(date, hours), [date, hours])
+
+  // The 3D shadows follow the slider at once. The street shade is worked out at most
+  // once per screen frame, for the latest slider position, so the slider never stalls.
+  const [shadeSun, setShadeSun] = useState(sun)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShadeSun(sun))
+    return () => cancelAnimationFrame(id)
+  }, [sun])
+  const streetShade = useMemo(() => shade?.streetShade(shadeSun), [shade, shadeSun])
+  const areaShade = useMemo(
+    () => (shade && result && !result.error ? result.areas.map((a) => shade.shadedShare(a.segments, shadeSun)) : null),
+    [shade, result, shadeSun],
+  )
+
+  const pick = (x, y) => {
+    setBusy(true)
+    // Let the panel show "Walking…" before the calculation starts.
+    setTimeout(() => {
+      setResult(compute(x, y))
+      setBusy(false)
+    }, 20)
+  }
+
   return (
-    <main>
-      <h1>Nothing here yet</h1>
-      {error && <p className="error">The city kit didn't load ({error}).</p>}
-      {kit && (
-        <p>
-          The city kit is ready: {kit.label}, {kit.size_m[0]} × {kit.size_m[1]} m, generated on {kit.generated}.
-          The data is in <code>public/data/</code>. Ask your agent to build something with it.
-        </p>
-      )}
-    </main>
+    <div className="app">
+      <div className="map">
+        {kit && (
+          <City kit={kit} result={result} onPick={pick} sun={sun} pieces={shade.pieces} streetShade={streetShade} />
+        )}
+        {kit && <SunControl date={date} hours={hours} sun={sun} onDate={setDate} onHours={setHours} />}
+        {!kit && !error && <p className="status">Loading the city kit…</p>}
+        {error && <p className="status error">The city kit didn't load ({error}).</p>}
+        <p className="attribution">{ATTRIBUTION}</p>
+      </div>
+      <Panel result={result} busy={busy} areaShade={areaShade} date={date} hours={hours} />
+    </div>
   )
 }
