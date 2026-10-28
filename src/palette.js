@@ -28,3 +28,7 @@ export const STREET_SHADE = '#4a4f63'
 // Suggested trees: crown and trunk.
 export const TREE_CROWN = '#4f8a3c'
 export const TREE_TRUNK = '#6b4f36'
+// Trees planted by the City Gardener: a lighter, yellower green, and the flash where it acted.
+export const GARDENER_CROWN = '#86a83a'
+export const DEMO_GARDENER_CROWN = '#3ddc2f' // bright, for demo mode
+export const HIGHLIGHT = '#ffd400'

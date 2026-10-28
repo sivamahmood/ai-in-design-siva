@@ -3,6 +3,11 @@ import { sunPosition } from './sun.js'
 
 export const DEFAULT_TREES = 20
 export const MAX_TREES = 100
+export const MAX_GARDENER_TREES = 30
+export const GARDENER_TREE_SCALE = 1.5 // gardener trees are this many times the size of suggested ones
+// The gardener's demo mode: more trees, and bigger, so they show from far away.
+export const DEMO_MAX_GARDENER_TREES = 150
+export const DEMO_TREE_SCALE = 2
 export const TREE_SPACING_M = 10 // at least this far from every other tree
 export const TREE_OFFSET_M = 3 // to the side of the street centre line
 
@@ -16,17 +21,57 @@ export const HEAT_FROM = 11
 export const HEAT_TO = 17
 const STEP_H = 0.25
 
+// Hours of sun per street piece between HEAT_FROM and HEAT_TO, with `trees` counted as shade.
+function pieceSunHours(shade, date, trees) {
+  const sunHours = new Float32Array(shade.pieces.length)
+  for (let h = HEAT_FROM + STEP_H / 2; h < HEAT_TO; h += STEP_H) {
+    const s = shade.streetShade(sunPosition(date, h), trees)
+    for (let i = 0; i < sunHours.length; i++) if (!s[i]) sunHours[i] += STEP_H
+  }
+  return sunHours
+}
+
+// Average hours of sun between HEAT_FROM and HEAT_TO per street segment (edge index), with `trees` counted as shade.
+export function segmentSunHours(shade, edges, date, trees = []) {
+  const sunHours = pieceSunHours(shade, date, trees)
+  const hours = new Float32Array(edges.length), length = new Float32Array(edges.length)
+  shade.pieces.forEach((p, i) => {
+    hours[p.edge] += sunHours[i] * p.length
+    length[p.edge] += p.length
+  })
+  return hours.map((h, k) => (length[k] ? h / length[k] : 0))
+}
+
+// One trunk position on edge `e`, on the side facing the sun first, at least TREE_SPACING_M from
+// every tree in `existing`, never in a building; null if there is no room.
+export function placeOnSegment(shade, nodes, e, sun, existing) {
+  const sunX = Math.sin((sun.azimuth * Math.PI) / 180), sunY = Math.cos((sun.azimuth * Math.PI) / 180)
+  const a = nodes[e.from].xy, b = nodes[e.to].xy
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+  if (!len) return null
+  const ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len
+  const side = -uy * sunX + ux * sunY >= 0 ? 1 : -1
+  const n = Math.max(1, Math.floor(len / TREE_SPACING_M))
+  // Spots from the middle of the segment outward.
+  const order = [...Array(n).keys()].sort((i, j) => Math.abs(i - (n - 1) / 2) - Math.abs(j - (n - 1) / 2))
+  for (const i of order) {
+    const t = ((i + 0.5) / n) * len
+    for (const s of [side, -side]) {
+      const p = [a[0] + ux * t - uy * TREE_OFFSET_M * s, a[1] + uy * t + ux * TREE_OFFSET_M * s]
+      if (shade.isBuilt(p[0], p[1])) continue
+      if (existing.some(([tx, ty]) => Math.hypot(tx - p[0], ty - p[1]) < TREE_SPACING_M)) continue
+      return p
+    }
+  }
+  return null
+}
+
 // Up to `count` tree positions for the chosen date and time, as [x, y] in local metres.
 // Uses building shade only, so earlier suggestions do not change the ranking.
 export function suggestTrees(shade, nodes, edges, date, hours, count) {
   const { pieces } = shade
 
-  // Hours of sun per street piece between HEAT_FROM and HEAT_TO.
-  const sunHours = new Float32Array(pieces.length)
-  for (let h = HEAT_FROM + STEP_H / 2; h < HEAT_TO; h += STEP_H) {
-    const s = shade.streetShade(sunPosition(date, h))
-    for (let i = 0; i < pieces.length; i++) if (!s[i]) sunHours[i] += STEP_H
-  }
+  const sunHours = pieceSunHours(shade, date, [])
   const now = shade.streetShade(sunPosition(date, hours))
 
   // Per street segment (one edge of the network): sunny length now and average sun hours.

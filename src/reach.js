@@ -230,6 +230,15 @@ export function createReach({ buildings, nodes, edges, cells }) {
 
     const maxLimit = MINUTES[MINUTES.length - 1] * SPEED_M_PER_MIN
     const dist = dijkstra(adjacency, start.id, maxLimit)
+    // Indices of the edges the longest walk reaches, at least in part, and the shortest walk
+    // (5, 10 or 15 minutes) that reaches each.
+    const reachedEdges = [], edgeMinutes = []
+    edges.forEach((e, k) => {
+      const d = Math.min(dist[e.from], dist[e.to])
+      if (d > maxLimit) return
+      reachedEdges.push(k)
+      edgeMinutes.push(MINUTES.find((m) => d <= m * SPEED_M_PER_MIN))
+    })
 
     // Per building: index of the smallest area it touches (0 = 5 min), or -1.
     const buildingArea = new Int8Array(buildings.length).fill(-1)
@@ -246,6 +255,6 @@ export function createReach({ buildings, nodes, edges, cells }) {
       areas[k] = { minutes, segments, shapes: area.shapes, buildings: candidates.length, ...residentsIn(area) }
     }
 
-    return { start: start.xy, snapDistance: best, areas, buildingArea }
+    return { start: start.xy, snapDistance: best, areas, buildingArea, edges: reachedEdges, edgeMinutes }
   }
 }

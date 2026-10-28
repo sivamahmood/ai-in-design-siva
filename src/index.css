@@ -223,3 +223,69 @@ body {
   cursor: default;
   color: #aaa;
 }
+
+/* The gardener's log, newest on top. */
+.gardener-log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.gardener-log li {
+  padding: 0.4rem 0 0.4rem 0.5rem;
+  border-top: 1px solid #e6e2da;
+  border-left: 3px solid #d8d3c8;
+}
+
+.gardener-log li.plant_tree {
+  border-left-color: #86a83a;
+}
+
+.gardener-log li.remove_tree {
+  border-left-color: #b98a3a;
+}
+
+.gardener-log li.error {
+  border-left-color: #b42318;
+}
+
+.gardener-log .when,
+.gardener-log .noticed {
+  font-size: 0.72rem;
+  color: #666;
+}
+
+.gardener-log .note {
+  font-size: 0.72rem;
+  color: #8a5a00;
+}
+
+.demo-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.tree-control .demo-toggle input {
+  display: inline;
+  width: auto;
+  margin: 0;
+}
+
+.gardener-log li.plant_trees {
+  border-left-color: #3ddc2f;
+}
+
+.gardener-log .plantings {
+  margin: 0.2rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.78rem;
+}
+
+.gardener-log .plantings li {
+  padding: 0;
+  border: none;
+}

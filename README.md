@@ -6,6 +6,8 @@ Click on the ground. The app starts at the nearest street junction, walks the pe
 
 A shade layer shows building shade for a chosen date and time (default 21 July, 14:00; the time slider runs from 08:00 to 20:00). The buildings cast shadows on the ground, streets in building shade turn dark slate and streets in sun amber, and the panel shows for each walking area the share of the walked street length that lies in shade.
 
+The City Gardener plants trees on its own. When you start a walk, when you stop moving the time slider, and every 2 minutes (never more than once in 5 seconds), it looks at the sun, the 10 sunniest street segments of the current walk, those within 10 minutes of the start first (hours of sun from 11:00 to 17:00, counting the shade of all trees), where walks started recently, and its own trees. It then plants one tree, removes one of its own, or waits, and says why in one sentence. Its trees are a lighter green and 1.5 times the size of the suggested trees (a crown 12 m wide, 15 m tall), and count in the shade numbers. A yellow ring and column mark where it acted for 6 seconds, and after planting the view glides to the new tree. The Gardener panel logs each turn, newest on top, and can be paused. A "Demo mode" checkbox makes it busier for presentations: up to 5 trees per turn (each with its own reason), a turn every 20 seconds, up to 150 trees, all gardener trees twice the standard size and bright green, and the view stays on the whole city instead of following each tree. It only runs with `npm run dev` on your own computer: the dev server passes its notes to Claude Haiku through `claude -p` on your Claude account (`gardener-server.js`). On GitHub Pages the panel says "The gardener only thinks on localhost".
+
 ## Run it
 
 ```
@@ -37,6 +39,7 @@ npm run dev     start the app at http://localhost:5173
 - Buildings are extruded to their highest point; roof shapes are not shown.
 - Shade counts buildings and, when shown, the suggested trees. Existing trees, terrain, awnings and clouds are not included, and buildings are blocks of their highest point, which overstates shade from pitched roofs a little.
 - Suggested trees have an assumed size, not a measured one: a round crown 8 m wide, 10 m tall in total. Only the crown casts shade, and it blocks the sun fully, while a real crown lets some light through. Only the trunk is kept clear of buildings, so in narrow lanes a crown can overlap a facade. Trees are placed for one date and time; they stay put when the slider moves.
+- The gardener only sees the numbers it is given, not the map, and is a small, fast model, so its choices can be plain or odd; the app only refuses ids that are not in its list. A gardener tree goes on the chosen segment by the same rules as the suggested trees and is skipped if there is no room. Its trees are gone when you reload the page. Each turn takes a few seconds and uses your Claude account.
 - Streets near the edge of the kit miss shade from buildings outside it.
 - Shade is measured on the street centre line, not across the whole width of the street or square.
 

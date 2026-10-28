@@ -7,6 +7,7 @@ import { createReach } from './reach.js'
 import { createShade } from './shade.js'
 import { sunPosition } from './sun.js'
 import { suggestTrees } from './trees.js'
+import { useGardener } from './gardener.js'
 
 // Worded as in public/data/SOURCES.md.
 const ATTRIBUTION =
@@ -40,23 +41,28 @@ export default function App() {
     const id = requestAnimationFrame(() => setShadeSun(sun))
     return () => cancelAnimationFrame(id)
   }, [sun])
-  const streetShade = useMemo(() => shade?.streetShade(shadeSun, trees?.points), [shade, shadeSun, trees])
+  const gardener = useGardener({ kit, shade, date, hours, sun, result, suggestedTrees: trees?.points })
+  const gardenerPoints = gardener.points
+  // Suggested and gardener trees both cast shade.
+  const allTrees = useMemo(() => [...(trees?.points ?? []), ...gardenerPoints], [trees, gardenerPoints])
+
+  const streetShade = useMemo(() => shade?.streetShade(shadeSun, allTrees), [shade, shadeSun, allTrees])
   const areaShade = useMemo(
     () =>
       shade && result && !result.error
-        ? result.areas.map((a) => shade.shadedShare(a.segments, shadeSun, trees?.points))
+        ? result.areas.map((a) => shade.shadedShare(a.segments, shadeSun, allTrees))
         : null,
-    [shade, result, shadeSun, trees],
+    [shade, result, shadeSun, allTrees],
   )
   // Street length in sun without the trees that lies in tree shade now, in metres.
   const treeShadedLength = useMemo(() => {
-    if (!trees || !streetShade) return 0
+    if (!allTrees.length || !streetShade) return 0
     let sum = 0
     shade.pieces.forEach((p, i) => {
       if (streetShade[i] === 2) sum += p.length
     })
     return sum
-  }, [shade, streetShade, trees])
+  }, [shade, streetShade, allTrees])
 
   const suggest = (count) => {
     setTreesBusy(true)
@@ -89,6 +95,9 @@ export default function App() {
             pieces={shade.pieces}
             streetShade={streetShade}
             trees={trees?.points}
+            gardenerTrees={gardenerPoints}
+            highlight={gardener.highlight}
+            demo={gardener.demo}
           />
         )}
         {kit && <SunControl date={date} hours={hours} sun={sun} onDate={setDate} onHours={setHours} />}
@@ -108,6 +117,7 @@ export default function App() {
         treeShadedLength={treeShadedLength}
         onSuggest={suggest}
         onRemove={() => setTrees(null)}
+        gardener={gardener}
       />
     </div>
   )

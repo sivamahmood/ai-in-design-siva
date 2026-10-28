@@ -1,14 +1,19 @@
-// The side panel: results for 5, 10 and 15 minutes, suggested trees, the method in plain words, and the legend.
+// The side panel: results for 5, 10 and 15 minutes, suggested trees, the City Gardener, the method in plain words, and the legend.
 import { useState } from 'react'
 import { BAND_M, MAX_SNAP_M, MINUTES, SPEED_M_PER_MIN } from './reach.js'
-import { REACH_COLORS, STREET_SHADE, STREET_SUN, TREE_CROWN, USE_COLORS } from './palette.js'
+import { DEMO_GARDENER_CROWN, GARDENER_CROWN, REACH_COLORS, STREET_SHADE, STREET_SUN, TREE_CROWN, USE_COLORS } from './palette.js'
 import { formatTime } from './SunControl.jsx'
+import { DEMO_AUTO_MS, DEMO_PLANTS } from './gardener.js'
 import {
   CROWN_CENTRE_M,
   CROWN_RADIUS_M,
   DEFAULT_TREES,
+  DEMO_MAX_GARDENER_TREES,
+  DEMO_TREE_SCALE,
   HEAT_FROM,
+  GARDENER_TREE_SCALE,
   HEAT_TO,
+  MAX_GARDENER_TREES,
   MAX_TREES,
   TREE_OFFSET_M,
   TREE_SPACING_M,
@@ -62,7 +67,7 @@ function Results({ result, busy, areaShade, when, hasTrees }) {
         </tbody>
       </table>
       <p className="caption">
-        In shade: share of the walked street length in building shade{hasTrees && ' or shade of the suggested trees'} on{' '}
+        In shade: share of the walked street length in building shade{hasTrees && ' or tree shade'} on{' '}
         {when}.
       </p>
     </>
@@ -149,6 +154,80 @@ function Trees({ ready, result, areaShade, trees, treesBusy, treeShadedLength, w
   )
 }
 
+const ACTION_LABEL = {
+  plant_tree: 'Planted a tree',
+  plant_trees: 'Planted trees',
+  remove_tree: 'Removed a tree', wait: 'Waited',
+  error: 'Could not think',
+}
+
+// What the gardener noticed, in one line.
+function noticed({ date, hours, altitude, top, scope, trees, maxTrees }) {
+  const sun = altitude > 0 ? `sun ${Math.round(altitude)}°` : 'sun down'
+  const sunniest = top
+    ? `sunniest ${scope === 'walk' ? 'near the walk' : 'on the map'}: segment ${top.id}, ${top.sun_hours_11_17} h`
+    : 'no street in sun'
+  return `${fmtDate(date)} ${formatTime(hours)}, ${sun}; ${sunniest}; ${trees} of ${maxTrees} trees`
+}
+
+function Gardener({ gardener }) {
+  const { offline, paused, demo, thinking, trees, maxTrees, log, togglePause, toggleDemo } = gardener
+  if (offline) return <p className="hint">The gardener only thinks on localhost.</p>
+  return (
+    <>
+      <div className="tree-control">
+        <button type="button" onClick={togglePause}>
+          {paused ? 'Resume' : 'Pause'}
+        </button>
+        <span className="hint">
+          {paused ? 'Paused' : thinking ? 'Thinking…' : 'Watching'} · {trees.length} of {maxTrees} trees
+        </span>
+        <label className="demo-toggle">
+          <input type="checkbox" checked={demo} onChange={toggleDemo} />
+          Demo mode
+        </label>
+      </div>
+      {demo && (
+        <p className="caption">
+          Demo mode: up to {DEMO_PLANTS} trees per turn, a turn every {DEMO_AUTO_MS / 1000} seconds, up to{' '}
+          {DEMO_MAX_GARDENER_TREES} trees, {DEMO_TREE_SCALE} times as big and bright green. The view stays on the whole city.
+        </p>
+      )}
+      {log.length === 0 && (
+        <p className="hint">It thinks when you start a walk, when you stop moving the time slider, and every {demo ? '20 seconds' : '2 minutes'}.</p>
+      )}
+      <ol className="gardener-log">
+        {log.map((e) => (
+          <li key={e.key} className={e.action}>
+            <div className="when">
+              {e.at} · {e.why}
+            </div>
+            <div className="noticed">{noticed(e.noticed)}</div>
+            <div>
+              <strong>
+                {ACTION_LABEL[e.action]}
+                {e.action === 'plant_tree' && ` on segment ${e.segment_id}`}
+                {e.action === 'remove_tree' && ` (${e.tree_id})`}
+              </strong>{' '}
+              {e.reason}
+            </div>
+            {e.action === 'plant_trees' && (
+              <ul className="plantings">
+                {e.plantings.map((p, i) => (
+                  <li key={i}>
+                    Segment {p.segment_id}: {p.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {e.note && <div className="note">{e.note}</div>}
+          </li>
+        ))}
+      </ol>
+    </>
+  )
+}
+
 export default function Panel({
   result,
   busy,
@@ -161,9 +240,10 @@ export default function Panel({
   treeShadedLength,
   onSuggest,
   onRemove,
+  gardener,
 }) {
   const when = `${fmtDate(date)} at ${formatTime(hours)}`
-  const hasTrees = trees?.points.length > 0
+  const hasTrees = trees?.points.length > 0 || gardener.trees.length > 0
   return (
     <aside className="panel">
       <h1>How far can you walk?</h1>
@@ -181,6 +261,9 @@ export default function Panel({
         onSuggest={onSuggest}
         onRemove={onRemove}
       />
+
+      <h2>Gardener</h2>
+      <Gardener gardener={gardener} />
 
       <h2>How this is worked out</h2>
       <ul className="method">
@@ -220,6 +303,17 @@ export default function Panel({
           Tree size is assumed, not measured: a round crown {2 * CROWN_RADIUS_M} m wide, {CROWN_CENTRE_M + CROWN_RADIUS_M} m
           tall in total. Only the crown casts shade, and it blocks the sun fully.
         </li>
+        <li>
+          The gardener (Claude Haiku, only when the app runs on localhost) sees the 10 sunniest segments of the walk,
+          those within 10 minutes of the start first, with their hours of sun from{' '}
+          {String(HEAT_FROM).padStart(2, '0')}:00 to {HEAT_TO}:00 counting all trees, the last walk starts and its own
+          trees. Each turn it plants one tree, removes one of its own, or waits; at most {MAX_GARDENER_TREES} trees. A
+          planted tree goes on that segment by the same rules as the suggested trees. Its trees are{' '}
+          {GARDENER_TREE_SCALE} times as big: a crown {2 * CROWN_RADIUS_M * GARDENER_TREE_SCALE} m wide,{' '}
+          {(CROWN_CENTRE_M + CROWN_RADIUS_M) * GARDENER_TREE_SCALE} m tall. Demo mode plants up to {DEMO_PLANTS} trees per
+          turn, up to {DEMO_MAX_GARDENER_TREES} in all, and makes them {DEMO_TREE_SCALE} times as big; their shade counts at that
+          size.
+        </li>
         <li>Not included: existing trees, terrain, roof shapes, buildings outside the kit, and clouds.</li>
       </ul>
 
@@ -242,6 +336,10 @@ export default function Panel({
         <li>
           <span className="swatch" style={{ background: TREE_CROWN }} />
           suggested tree
+        </li>
+        <li>
+          <span className="swatch" style={{ background: gardener.demo ? DEMO_GARDENER_CROWN : GARDENER_CROWN }} />
+          gardener tree
         </li>
         {USE_COLORS.map(([use, color, label]) => (
           <li key={use}>

@@ -76,26 +76,27 @@ export function createShade({ buildings, nodes, edges }) {
     }
   }
 
-  // A test for the shade of tree crowns at [x, y] trunk positions, for one sun position.
+  // A test for the shade of tree crowns at [x, y] trunk positions, for one sun position. A tree given as
+  // [x, y, scale] is that many times the standard size (gardener trees are bigger).
   // Each crown's shadow is an ellipse around a centre away from the sun; the centres are sorted
-  // into squares as big as the ellipse is long, so a point only checks the nine squares around it.
+  // into squares as big as the largest ellipse is long, so a point only checks the nine squares around it.
   function treeTest(trees, { altitude, azimuth }) {
     if (!trees.length || altitude <= 0) return () => false
     const alt = (altitude * Math.PI) / 180, az = (azimuth * Math.PI) / 180
     const ray = [Math.sin(az) * Math.cos(alt), Math.cos(az) * Math.cos(alt), Math.sin(alt)]
-    const reach = CROWN_CENTRE_M / Math.tan(alt)
-    const size = CROWN_RADIUS_M / Math.sin(alt)
-    const r2 = CROWN_RADIUS_M * CROWN_RADIUS_M
+    const maxScale = Math.max(...trees.map((t) => t[2] ?? 1))
+    const size = (CROWN_RADIUS_M * maxScale) / Math.sin(alt)
     // Squares are numbered as column * KEY + row; the kit is far smaller than KEY squares across.
     const KEY = 1e6
     const squares = new Map()
     // The squares holding any shadow, padded by one, so most street points are ruled out at once.
     let minGx = Infinity, minGy = Infinity, maxGx = -Infinity, maxGy = -Infinity
-    for (const [x, y] of trees) {
+    for (const [x, y, scale = 1] of trees) {
+      const reach = (CROWN_CENTRE_M * scale) / Math.tan(alt)
       const gx = Math.floor((x - Math.sin(az) * reach) / size), gy = Math.floor((y - Math.cos(az) * reach) / size)
       const key = gx * KEY + gy
       if (!squares.has(key)) squares.set(key, [])
-      squares.get(key).push([x, y])
+      squares.get(key).push([x, y, CROWN_CENTRE_M * scale, (CROWN_RADIUS_M * scale) ** 2])
       minGx = Math.min(minGx, gx - 1), maxGx = Math.max(maxGx, gx + 1)
       minGy = Math.min(minGy, gy - 1), maxGy = Math.max(maxGy, gy + 1)
     }
@@ -104,9 +105,9 @@ export function createShade({ buildings, nodes, edges }) {
       if (gx < minGx || gx > maxGx || gy < minGy || gy > maxGy) return false
       for (let i = gx - 1; i <= gx + 1; i++)
         for (let j = gy - 1; j <= gy + 1; j++)
-          for (const [tx, ty] of squares.get(i * KEY + j) ?? []) {
+          for (const [tx, ty, vz, r2] of squares.get(i * KEY + j) ?? []) {
             // Distance from the crown centre to the ray from the point toward the sun.
-            const vx = tx - x, vy = ty - y, vz = CROWN_CENTRE_M
+            const vx = tx - x, vy = ty - y
             const along = vx * ray[0] + vy * ray[1] + vz * ray[2]
             if (along > 0 && vx * vx + vy * vy + vz * vz - along * along < r2) return true
           }
